@@ -1,0 +1,129 @@
+%{
+	Using PCA method to classify.
+	@param trainingDataPathList : it's array of training data path
+	@param testImgPath : it's test data img path
+	@return recognized_img : in path format	
+	@assumption all the imgs are in the same size
+%}
+
+function [ bit ] = facerecog( trainingDataPathList, testImgPath )
+       
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%(PCA algorithm)
+
+    imgcount = size(trainingDataPathList , 1);
+    X = []; 
+
+    for i = 1 : imgcount
+        X = [X , imreadOneD( trainingDataPathList(i,: ))];
+    end
+
+    m = mean(X,2); 
+    A = []; 
+    for i = 1 : imgcount
+        A = [A double(X(:,i))-m ];  
+    end
+
+    L = A' * A;
+    [V,D] = eig(L);
+
+
+    L_eig_vec = [];
+    for i = 1 : size(V,2);
+        if(D(i,i) > 1)
+            L_eig_vec = [L_eig_vec V(:,i)];
+        end
+    end
+
+    eigenfaces = A * L_eig_vec;
+
+    projectimg = [];
+    for i = 1 : size(A,2)
+        projectimg = [projectimg eigenfaces' * A(:,i)];
+    end
+
+    testimg = imreadOneD(testImgPath);
+    testimg = double(testimg) - m ; 
+    projtestimg = eigenfaces' * testimg;
+
+    [classto, error] = getNearestIndex(projectimg, projtestimg)
+
+    if (error < 2 * 10^16)
+        figure;
+        subplot(1,2,1), subimage(imread(trainingDataPathList(classto,:))), title('DATABASE IMAGE')
+        subplot(1,2,2), subimage(imread(testImgPath)),title('TEST IMAGE')
+        bit = 1;
+%         for i = 1:10
+%             turnon(23,1);
+%             pause(0.5);
+%             turnon(23,0);
+%             pause(0.5);
+%         end
+        
+    else
+        errordlg('ACCESS DENIED', 'ERROR');
+        bit = 0;
+%          for i = 1:10
+%             turnon(24,1);
+%             pause(0.5);
+%             turnon(24,0);
+%             pause(0.5);
+%          end
+        
+    end
+
+
+end
+
+
+function [outputs] = imreadOneD(imgPath)
+	img = imreadGray(imgPath);
+	[r c] = size(img);
+	outputs = reshape(img',r*c,1);
+end
+
+
+
+function [img] = imreadGray(imgPath)
+	img = imread(imgPath);
+	if (size(img,3) == 3)
+		img = rgb2gray(img);
+	end
+
+end
+
+
+function [Singular_Value_Decomp] = S_V_D(trainingDataPathList) 
+    imgcount = size(trainingDataPathList , 1);
+    f = []; 
+
+    for i = 1 : imgcount
+        f = [f , imreadOneD( trainingDataPathList(i,: ))];
+    
+
+        gray = double(f(:,:,1));
+
+        [u, s, v] = svds(gray);
+        imgray = uint8( u * s * transpose(v));
+
+        figure,
+
+        subplot(1,1,1), subimage(imgray,title('OUTPUT IMAGE'))
+        imageinfo;
+        imsave;
+    end
+    
+    
+end
+
+
+function [index error] = getNearestIndex(projectimg, referece)
+	euclide_dist = [];
+	for i = 1 : size(projectimg,2)	
+		euclide_dist = [euclide_dist (norm(projectimg(:,i)-referece))^2];
+	end
+
+	[error index] = min(euclide_dist);
+end
+
